@@ -14,17 +14,11 @@ import (
 	"github.com/ztolley/family-chat-gpt-server/internal/api"
 	"github.com/ztolley/family-chat-gpt-server/internal/auth"
 	"github.com/ztolley/family-chat-gpt-server/internal/httpx"
-	"github.com/ztolley/family-chat-gpt-server/internal/static"
 	"github.com/ztolley/family-chat-gpt-server/internal/storage"
 )
 
 func main() {
 	port := readPort()
-
-	publicDir, indexPath, err := static.Resolve(os.Getenv("PUBLIC_DIR"))
-	if err != nil {
-		log.Fatalf("failed to resolve public assets: %v", err)
-	}
 
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 	appleClientID := os.Getenv("APPLE_CLIENT_ID")
@@ -63,7 +57,9 @@ func main() {
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "Method not allowed.")
 	})
 
-	r.NotFound(static.Handler(publicDir, indexPath))
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteError(w, http.StatusNotFound, "Resource not found.")
+	})
 
 	log.Printf("Server listening on http://localhost:%d", port)
 

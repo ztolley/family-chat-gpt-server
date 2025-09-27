@@ -1,4 +1,4 @@
-# Family Chat (GPT)
+# Family Chat (GPT) - Server
 
 Dad has a ChatGPT Plus account for work and the rest of the family want one to
 help with homework, household management, advice, money planning etc.
