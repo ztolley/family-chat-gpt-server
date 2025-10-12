@@ -1,85 +1,83 @@
-# Family Chat (GPT) - Server
+# Family Chat (GPT) – Node Server
 
-Dad has a ChatGPT Plus account for work and the rest of the family want one to
-help with homework, household management, advice, money planning etc.
-Unfortunately ChatGPT doesn't offer a family plan.
-
-Family Chat (GPT) lets each family member log in and submit queries to ChatGPT
-via the ChatGPT API and an API key tied to Dad's plan. Queries include metadata
-so the server only returns items that belong to the authenticated user.
+Family Chat (GPT) lets each family member sign in with Google and submit their
+own GPT prompts while sharing a single OpenAI subscription. Requests carry
+metadata so the API only exposes items owned by the authenticated user.
 
 ## Architecture
 
-The application is a web app backed by a JSON HTTP API. Future versions may add
-native clients for iOS and Android once the API stabilises.
-
-## Backend
-
-The backend is implemented in Go using the
-[chi router](https://github.com/go-chi/chi) and a lightweight middleware stack.
-Identity tokens from Google are validated against the Google JWKS endpoint, and
-authenticated requests work with an in-memory store
-of per-user items.
+The backend is a TypeScript + Express service that exposes a JSON REST API. The
+Google OAuth authorization code flow (with refresh tokens) is terminated on the
+server: `/auth/google/token` exchanges authorization codes for tokens, and
+`/auth/google/refresh` mints new Google ID tokens from stored refresh tokens.
+API routes still accept the Google ID token via the `Authorization` header, and
+route handlers remain annotated with `@openapi` JSDoc blocks to enable
+machine-generated docs.
 
 ## Frontend
 
-Static HTML and web components (LIT) compiled into assets under `public/`. The
-Go server serves these files directly and falls back to `index.html` to support
-client-side routing.
+The accompanying web client (Lit-based) consumes this API. It is developed in
+the neighbouring `family-chat-gpt-web` workspace.
 
 ## Development
 
 ### Prerequisites
 
-- [Go 1.22+](https://go.dev/dl/)
+- [Node.js 20+](https://nodejs.org/)
+- npm (ships with Node.js)
 
 ### Environment variables
 
-Set the following variables before running the server (via `.env`, your shell
-profile, or your process manager):
+- `PORT` (optional) – HTTP port to bind. Defaults to `3000`.
+- `GOOGLE_CLIENT_ID` – Google OAuth client ID used for the OAuth flow.
+- `GOOGLE_CLIENT_SECRET` – Corresponding client secret (required for the server
+  token exchange).
+- `GOOGLE_REDIRECT_URI` (optional) – Redirect URI registered for the OAuth
+  client. Defaults to `postmessage`, which is supported by Google Identity
+  Services.
 
-- `PORT` (optional) – HTTP port to bind (default `3000`).
-- `GOOGLE_CLIENT_ID` – Google OAuth client ID expected in Google Identity tokens
-  (optional, audience will not be enforced if omitted).
-- `PUBLIC_DIR` (optional) – absolute or relative path to the directory containing
-  static assets. Defaults to `./public` relative to the working directory.
-
-### Run locally
-
-```bash
-go run ./cmd/server
-```
-
-The server listens on `http://localhost:PORT` (default `3000`). Press `Ctrl+C`
-to stop it.
-
-### Build a binary
+### Install dependencies
 
 ```bash
-go build -o bin/familychat ./cmd/server
+npm install
 ```
 
-This produces a standalone binary at `bin/familychat`.
-
-### Static assets
-
-Everything inside `public/` is served directly. Unmatched `GET` requests fall
-back to `public/index.html` so that SPA-style routing continues to work.
-
-### Notes on authentication
-
-Token verification relies on fetching remote JWKS documents from Google. Ensure
-outbound HTTPS traffic is allowed from the runtime environment so this lookup
-can succeed.
-
-### Build Notes
-
-A Makefile is provided to provide shortcuts for simple tasks like building the
-binary to ensure files are placed in the right place to avoid checking to Git
+### Run in development mode
 
 ```bash
-make build
-make run
-make test
-make clean
+npm run dev
 ```
+
+The dev server restarts on source changes and listens on
+`http://localhost:PORT` (default `3000`).
+
+### Build for production
+
+```bash
+npm run build
+```
+
+JavaScript output lands in `dist/`. Start the compiled server with:
+
+```bash
+npm run start
+```
+
+### Lint
+
+```bash
+npm run lint
+```
+
+### Authentication notes
+
+Token verification makes outbound HTTPS calls to Google to download and cache
+signing keys. Ensure the runtime environment permits egress traffic to Google
+APIs.
+
+### API documentation
+
+- `GET /docs` returns the machine-generated OpenAPI 3.1 JSON document, derived
+  from inline `@openapi` annotations.
+- `GET /docs/ui` serves the same specification through a Redoc-powered UI for a
+  human-friendly browsing experience.
