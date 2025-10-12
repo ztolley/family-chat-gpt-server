@@ -17,8 +17,8 @@ native clients for iOS and Android once the API stabilises.
 
 The backend is implemented in Go using the
 [chi router](https://github.com/go-chi/chi) and a lightweight middleware stack.
-Identity tokens from Google and Apple are validated against their respective
-remote JWKS endpoints, and authenticated requests work with an in-memory store
+Identity tokens from Google are validated against the Google JWKS endpoint, and
+authenticated requests work with an in-memory store
 of per-user items.
 
 ## Frontend
@@ -40,8 +40,6 @@ profile, or your process manager):
 
 - `PORT` (optional) – HTTP port to bind (default `3000`).
 - `GOOGLE_CLIENT_ID` – Google OAuth client ID expected in Google Identity tokens
-  (optional, audience will not be enforced if omitted).
-- `APPLE_CLIENT_ID` – Apple Services ID expected in Apple identity tokens
   (optional, audience will not be enforced if omitted).
 - `PUBLIC_DIR` (optional) – absolute or relative path to the directory containing
   static assets. Defaults to `./public` relative to the working directory.
@@ -70,9 +68,9 @@ back to `public/index.html` so that SPA-style routing continues to work.
 
 ### Notes on authentication
 
-Token verification relies on fetching remote JWKS documents from Google and
-Apple. Ensure outbound HTTPS traffic is allowed from the runtime environment so
-these lookups can succeed.
+Token verification relies on fetching remote JWKS documents from Google. Ensure
+outbound HTTPS traffic is allowed from the runtime environment so this lookup
+can succeed.
 
 ### Build Notes
 

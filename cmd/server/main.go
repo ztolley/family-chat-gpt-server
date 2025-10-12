@@ -21,9 +21,11 @@ func main() {
 	port := readPort()
 
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
-	appleClientID := os.Getenv("APPLE_CLIENT_ID")
 
-	verifier := auth.NewTokenVerifier(nil, googleClientID, appleClientID)
+	verifier, err := auth.NewTokenVerifier(nil, googleClientID)
+	if err != nil {
+		log.Fatalf("failed to initialise token verifier: %v", err)
+	}
 	store := storage.NewMemoryStore()
 	apiService := api.New(store)
 
@@ -44,7 +46,6 @@ func main() {
 	r.Get("/config", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]*string{
 			"googleClientId": httpx.StringPtrOrNil(googleClientID),
-			"appleClientId":  httpx.StringPtrOrNil(appleClientID),
 		})
 	})
 

@@ -4,7 +4,6 @@ type AuthProvider string
 
 const (
 	ProviderGoogle AuthProvider = "google"
-	ProviderApple  AuthProvider = "apple"
 )
 
 type TokenIdentity struct {
