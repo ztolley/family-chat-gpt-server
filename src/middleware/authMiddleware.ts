@@ -54,6 +54,12 @@ export function createAuthMiddleware(googleClientId?: string) {
         identity.name = name;
       }
 
+      const picture =
+        typeof payload.picture === "string" ? payload.picture.trim() : "";
+      if (picture) {
+        identity.pictureUrl = picture;
+      }
+
       req.identity = identity;
       next();
     } catch (error) {

@@ -37,6 +37,9 @@ async function buildIdentityFromIdToken(idToken: string): Promise<TokenIdentity>
   if (payload.name) {
     identity.name = payload.name;
   }
+  if (payload.picture) {
+    identity.pictureUrl = payload.picture;
+  }
   return identity;
 }
 

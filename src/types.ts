@@ -3,6 +3,7 @@ export interface TokenIdentity {
   subject: string;
   email?: string;
   name?: string;
+  pictureUrl?: string;
 }
 
 export interface Item {
