@@ -5,11 +5,7 @@ import type { Item } from "../types";
 export interface Store {
   list(subject: string): Item[];
   add(subject: string, item: Item): Item;
-  update(
-    subject: string,
-    id: string,
-    transform: (item: Item) => Item
-  ): Item;
+  update(subject: string, id: string, transform: (item: Item) => Item): Item;
   delete(subject: string, id: string): void;
 }
 
@@ -40,11 +36,7 @@ export class MemoryStore implements Store {
     return { ...payload };
   }
 
-  update(
-    subject: string,
-    id: string,
-    transform: (item: Item) => Item
-  ): Item {
+  update(subject: string, id: string, transform: (item: Item) => Item): Item {
     const existing = this.items.get(subject) ?? [];
     const index = existing.findIndex((item) => item.id === id);
 
@@ -86,6 +78,6 @@ function ensureRFC3339(value: string): string {
 function ensureRFC3339Item(item: Item): Item {
   return {
     ...item,
-    updatedAt: ensureRFC3339(item.updatedAt)
+    updatedAt: ensureRFC3339(item.updatedAt),
   };
 }

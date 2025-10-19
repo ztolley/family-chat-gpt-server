@@ -10,14 +10,18 @@ if (!clientId) {
   throw new Error("GOOGLE_CLIENT_ID must be configured for OAuth exchanges.");
 }
 if (!clientSecret) {
-  throw new Error("GOOGLE_CLIENT_SECRET must be configured for OAuth exchanges.");
+  throw new Error(
+    "GOOGLE_CLIENT_SECRET must be configured for OAuth exchanges.",
+  );
 }
 
 function createOAuthClient(): OAuth2Client {
   return new OAuth2Client(clientId, clientSecret, redirectUri);
 }
 
-async function buildIdentityFromIdToken(idToken: string): Promise<TokenIdentity> {
+async function buildIdentityFromIdToken(
+  idToken: string,
+): Promise<TokenIdentity> {
   const client = createOAuthClient();
   const ticket = await client.verifyIdToken({
     idToken,

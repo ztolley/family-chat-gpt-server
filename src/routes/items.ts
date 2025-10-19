@@ -5,15 +5,15 @@ import { Router } from "express";
 import type { AuthenticatedRequest } from "../middleware/authMiddleware";
 import type { Store } from "../storage/memoryStore";
 import { NotFoundError } from "../storage/memoryStore";
-import type { Item } from "../types";
-
-interface ItemPayload {
-  title?: unknown;
-  description?: unknown;
-}
-
-const MAX_TITLE_LENGTH = 256;
-const MAX_DESCRIPTION_LENGTH = 2048;
+import {
+  itemCreateOpenApiSchema,
+  itemUpdateOpenApiSchema,
+  type Item,
+  type ItemCreatePayload,
+  type ItemUpdatePayload,
+} from "../types";
+import { validateRequest } from "../validation/jsonSchemaValidator";
+import { prepareItemPayload } from "../validation/prepareItemPayload";
 
 export function createItemsRouter(store: Store): Router {
   const router = Router();
@@ -29,21 +29,34 @@ export function createItemsRouter(store: Store): Router {
    *     responses:
    *       200:
    *         description: A list of items.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/Item'
    */
-  router.get("/items", (req: AuthenticatedRequest, res, next) => {
-    const identity = req.identity;
-    if (!identity) {
-      res.status(500).json({ error: "Authentication context missing." });
-      return;
-    }
+  router.get(
+    "/items",
+    (
+      req: AuthenticatedRequest,
+      res: Response<Item[] | { error: string }>,
+      next,
+    ) => {
+      const identity = req.identity;
+      if (!identity) {
+        res.status(500).json({ error: "Authentication context missing." });
+        return;
+      }
 
-    try {
-      const items = store.list(identity.subject);
-      res.status(200).json(items);
-    } catch (error) {
-      next(error);
-    }
-  });
+      try {
+        const items = store.list(identity.subject);
+        res.status(200).json(items);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   /**
    * @openapi
@@ -58,59 +71,49 @@ export function createItemsRouter(store: Store): Router {
    *       content:
    *         application/json:
    *           schema:
-   *             type: object
-   *             properties:
-   *               title:
-   *                 type: string
-   *               description:
-   *                 type: string
+   *             $ref: '#/components/schemas/ItemCreate'
    *     responses:
    *       201:
    *         description: Item created.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Item'
    *       400:
    *         description: Invalid payload.
    */
-  router.post("/items", (req: AuthenticatedRequest, res: Response, next) => {
-    const identity = req.identity;
-    if (!identity) {
-      res.status(500).json({ error: "Authentication context missing." });
-      return;
-    }
+  router.post(
+    "/items",
+    prepareItemPayload,
+    validateRequest(itemCreateOpenApiSchema),
+    (
+      req: AuthenticatedRequest,
+      res: Response<Item | { error: string }>,
+      next,
+    ) => {
+      const identity = req.identity;
+      if (!identity) {
+        res.status(500).json({ error: "Authentication context missing." });
+        return;
+      }
 
-    const { title, description } = normalisePayload(req.body as ItemPayload);
-    if (!title.valid) {
-      res.status(400).json({ error: title.message });
-      return;
-    }
+      const payload = req.body as ItemCreatePayload;
 
-    if (!description.valid) {
-      res.status(400).json({ error: description.message });
-      return;
-    }
+      const item: Item = {
+        id: randomUUID(),
+        title: payload.title,
+        description: payload.description ?? undefined,
+        updatedAt: timestampNow(),
+      };
 
-    const titleValue = title.value;
-    if (typeof titleValue !== "string") {
-      res.status(400).json({ error: "A non-empty title is required." });
-      return;
-    }
-
-    const descriptionValue =
-      description.value === undefined ? null : description.value;
-
-    const item: Item = {
-      id: randomUUID(),
-      title: titleValue,
-      description: descriptionValue ?? undefined,
-      updatedAt: timestampNow()
-    };
-
-    try {
-      const created = store.add(identity.subject, item);
-      res.status(201).json(created);
-    } catch (error) {
-      next(error);
-    }
-  });
+      try {
+        const created = store.add(identity.subject, item);
+        res.status(201).json(created);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   /**
    * @openapi
@@ -131,68 +134,57 @@ export function createItemsRouter(store: Store): Router {
    *       content:
    *         application/json:
    *           schema:
-   *             type: object
-   *             properties:
-   *               title:
-   *                 type: string
-   *               description:
-   *                 type: string
+   *             $ref: '#/components/schemas/ItemUpdate'
    *     responses:
    *       200:
    *         description: Item updated.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Item'
    *       400:
    *         description: Invalid payload.
    *       404:
    *         description: Item not found.
    */
-  router.put("/items/:id", (req: AuthenticatedRequest, res: Response, next) => {
-    const identity = req.identity;
-    if (!identity) {
-      res.status(500).json({ error: "Authentication context missing." });
-      return;
-    }
-
-    const itemId = String(req.params.id ?? "").trim();
-    if (!itemId) {
-      res.status(400).json({ error: "Item id is required." });
-      return;
-    }
-
-    const { title, description } = normalisePayload(req.body as ItemPayload, {
-      allowPartial: true
-    });
-
-    if (!title.valid) {
-      res.status(400).json({ error: title.message });
-      return;
-    }
-
-    if (!description.valid) {
-      res.status(400).json({ error: description.message });
-      return;
-    }
-
-    try {
-      const updated = store.update(identity.subject, itemId, (item) => {
-        const nextItem = { ...item };
-        if (title.present && typeof title.value === "string") {
-          nextItem.title = title.value;
-        }
-        if (description.present) {
-          nextItem.description = description.value ?? undefined;
-        }
-        nextItem.updatedAt = timestampNow();
-        return nextItem;
-      });
-      res.status(200).json(updated);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        res.status(404).json({ error: "Item not found." });
+  router.put(
+    "/items/:id",
+    prepareItemPayload,
+    validateRequest(itemUpdateOpenApiSchema),
+    (
+      req: AuthenticatedRequest,
+      res: Response<Item | { error: string }>,
+      next,
+    ) => {
+      const identity = req.identity;
+      if (!identity) {
+        res.status(500).json({ error: "Authentication context missing." });
         return;
       }
-      next(error);
-    }
-  });
+
+      const itemId = String(req.params.id ?? "").trim();
+      if (!itemId) {
+        res.status(400).json({ error: "Item id is required." });
+        return;
+      }
+
+      const payload = req.body as ItemUpdatePayload;
+
+      try {
+        const updated = store.update(identity.subject, itemId, (item) =>
+          applyItemPatch(item, payload),
+        );
+
+        res.status(200).json(updated);
+      } catch (error) {
+        if (error instanceof NotFoundError) {
+          res.status(404).json({ error: "Item not found." });
+          return;
+        }
+        next(error);
+      }
+    },
+  );
 
   /**
    * @openapi
@@ -239,131 +231,23 @@ export function createItemsRouter(store: Store): Router {
         }
         next(error);
       }
-    }
+    },
   );
 
   return router;
 }
 
-interface TitleResult {
-  valid: boolean;
-  value?: string;
-  present: boolean;
-  message?: string;
-}
-
-interface DescriptionResult {
-  valid: boolean;
-  value?: string | null;
-  present: boolean;
-  message?: string;
-}
-
-function normalisePayload(
-  payload: ItemPayload,
-  options: { allowPartial?: boolean } = {}
-): {
-  title: TitleResult;
-  description: DescriptionResult;
-} {
-  const { allowPartial = false } = options;
-
-  const rawTitle = payload?.title;
-  const rawDescription = payload?.description;
-
-  if (!allowPartial && typeof rawTitle !== "string") {
-    return {
-      title: {
-        valid: false,
-        message: "A non-empty title is required.",
-        present: true
-      },
-      description: { valid: true, value: null, present: false }
-    };
-  }
-
-  const titleResult = validateTitle(rawTitle, allowPartial);
-  const descriptionResult = validateDescription(rawDescription, allowPartial);
-
-  return {
-    title: titleResult,
-    description: descriptionResult
-  };
-}
-
-function validateTitle(value: unknown, allowPartial: boolean): TitleResult {
-  if (value === undefined && allowPartial) {
-    return { valid: true, value: undefined, present: false };
-  }
-
-  if (typeof value !== "string") {
-    return {
-      valid: false,
-      present: true,
-      message: allowPartial
-        ? "Title must be a string when provided."
-        : "A non-empty title is required."
-    };
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return {
-      valid: false,
-      present: true,
-      message: allowPartial
-        ? "Title must be a string when provided."
-        : "A non-empty title is required."
-    };
-  }
-
-  if (trimmed.length > MAX_TITLE_LENGTH) {
-    return {
-      valid: false,
-      present: true,
-      message: `Title must be ${MAX_TITLE_LENGTH} characters or fewer.`
-    };
-  }
-
-  return { valid: true, value: trimmed, present: true };
-}
-
-function validateDescription(
-  value: unknown,
-  allowPartial: boolean
-): DescriptionResult {
-  if (value === undefined && allowPartial) {
-    return { valid: true, value: undefined, present: false };
-  }
-
-  if (value === null) {
-    return { valid: true, value: null, present: true };
-  }
-
-  if (typeof value !== "string") {
-    return {
-      valid: false,
-      present: true,
-      message: "Description must be a string when provided."
-    };
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return { valid: true, value: null, present: true };
-  }
-
-  if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
-    return {
-      valid: false,
-      present: true,
-      message: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer.`
-    };
-  }
-
-  return { valid: true, value: trimmed, present: true };
-}
-
 function timestampNow(): string {
   return new Date().toISOString();
+}
+
+function applyItemPatch(item: Item, patch: ItemUpdatePayload): Item {
+  return {
+    ...item,
+    ...(patch.title !== undefined ? { title: patch.title } : null),
+    ...(patch.description !== undefined
+      ? { description: patch.description ?? undefined }
+      : null),
+    updatedAt: timestampNow(),
+  };
 }

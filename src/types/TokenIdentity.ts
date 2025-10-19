@@ -5,10 +5,3 @@ export interface TokenIdentity {
   name?: string;
   pictureUrl?: string;
 }
-
-export interface Item {
-  id: string;
-  title: string;
-  description?: string;
-  updatedAt: string;
-}

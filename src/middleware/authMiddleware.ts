@@ -13,7 +13,7 @@ export function createAuthMiddleware(googleClientId?: string) {
   return async (
     req: AuthenticatedRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ) => {
     const header = req.header("Authorization");
     if (!header || !header.toLowerCase().startsWith("bearer ")) {
@@ -30,7 +30,9 @@ export function createAuthMiddleware(googleClientId?: string) {
     try {
       const ticket = await client.verifyIdToken({
         idToken: token,
-        audience: googleClientId ? googleClientId.trim() || undefined : undefined,
+        audience: googleClientId
+          ? googleClientId.trim() || undefined
+          : undefined,
       });
       const payload = ticket.getPayload();
       if (!payload?.sub) {
@@ -63,15 +65,16 @@ export function createAuthMiddleware(googleClientId?: string) {
       req.identity = identity;
       next();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error ?? "");
+      const message =
+        error instanceof Error ? error.message : String(error ?? "");
       if (
         googleClientId &&
         message.toLowerCase().includes("audience") &&
         message.toLowerCase().includes("does not match")
       ) {
-        res
-          .status(401)
-          .json({ error: "Token audience does not match the configured client id." });
+        res.status(401).json({
+          error: "Token audience does not match the configured client id.",
+        });
         return;
       }
       res.status(401).json({ error: "Failed to validate token." });
